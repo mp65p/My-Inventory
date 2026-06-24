@@ -72,6 +72,14 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .item-card.st-expired .item-card-bar,.item-card.st-low .item-card-bar{background:var(--warn)}
 .item-card.st-soon .item-card-bar{background:var(--yellow)}
 .item-card.st-ww .item-card-bar{background:var(--blue)}
+.date-badge{font-size:9px;line-height:1.35;padding:1px 5px;border-radius:6px;margin-top:2px;font-weight:700;white-space:nowrap}
+.db-gray{background:#eceae6;color:#6b6b6b}
+.db-new{background:#dbeafe;color:#1d4ed8}
+.db-green{background:#dcfce7;color:#15803d}
+.db-yellow{background:#fef9c3;color:#a16207}
+.db-orange{background:#ffedd5;color:#c2410c}
+.db-red{background:#fee2e2;color:#b91c1c}
+.use-soon{font-size:13px;font-weight:800;color:#dc2626;text-align:center;line-height:1.25;margin:1px 0 2px;white-space:nowrap}
 .item-emoji{width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin-top:4px}
 .item-emoji img{width:36px;height:36px}
 .fallback-emoji{font-size:32px;line-height:1}
@@ -251,6 +259,9 @@ input:checked+.slider:before{transform:translateX(18px)}
   <!-- 庫存頁 -->
   <div class="page active" id="pageInv">
     <div class="inv-content">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button onclick="openRestockLog()" style="background:#fff;border:1.5px solid var(--border,#e5e3df);border-radius:9px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--ink2,#555);cursor:pointer;font-family:'Noto Sans TC',sans-serif">📥 入庫紀錄</button>
+      </div>
       <div class="item-grid" id="invGrid"></div>
     </div>
   </div>
@@ -297,6 +308,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">行事曆採購完成回傳後的入庫歷史（永久保存）。</div>
         <button class="btn-add-group" onclick="openRestockLog()">📥 查看入庫紀錄</button>
       </div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v53</div>
     </div>
   </div>
 
@@ -335,7 +347,7 @@ var AUTH_CODE='0430',AUTH_KEY='inv_auth',DATA_KEY='inv_v7';
 var LOC_KEY='inv_locs',CAT_KEY='inv_cats',FAV_KEY='inv_favs';
 var CUSTOM_EMOJI_KEY='inv_custom_emoji';
 var CAL_URL='https://mp65p.github.io/My-Schedule/';
-var SOON_DAYS=7,WARRANTY_WARN=30,CAT_3C='elec';
+var SOON_DAYS=7,WARRANTY_WARN=30,CAT_3C='elec',BUY_ADVANCE=2;
 
 // ══════════════════════════════════
 //  Emoji
@@ -466,22 +478,59 @@ function getStatus(it){
   }
   if(it.expiry&&it.expiry<td)
     return {type:'expired',label:'❗ 過期 '+diffDays(td,it.expiry)+' 天',cls:'red'};
+  // 庫存不足為主：數量 < 安全量（補到等於安全量就算足夠、離開待補貨）
+  if(it.qty < it.threshold)
+    return {type:'low',label:'⚠️ 不足，剩 '+it.qty+' '+(it.unit||''),cls:'red'};
+  // 採購間隔（選填）：只在「快到下次採購日」前 BUY_ADVANCE 天內才提醒
   if(it.lastBuy&&it.interval){
     var nb=addDays(it.lastBuy,it.interval),diff=diffDays(nb,td);
-    if(diff<=SOON_DAYS){
-      var lbl=diff<0?'🕐 採購日過 '+Math.abs(diff)+' 天':diff===0?'🕐 今天採購':'🕐 還有 '+diff+' 天';
-      if(it.qty<=it.threshold) lbl+='・剩'+it.qty+it.unit;
+    if(diff<=BUY_ADVANCE){
+      var lbl=diff<0?'🕐 該採購了（過 '+Math.abs(diff)+' 天）':diff===0?'🕐 今天該採購':'🕐 還有 '+diff+' 天該採購';
       return {type:'soon',label:lbl,cls:'yellow'};
     }
   }
-  if(it.qty<=it.threshold)
-    return {type:'low',label:'⚠️ 不足，剩 '+it.qty+' '+(it.unit||''),cls:'red'};
   return {type:'ok',label:'✓ 充足',cls:'green'};
 }
 
 function isAlert(it){
   var t=getStatus(it).type;
   return t==='expired'||t==='low'||t==='soon'||t==='ww'||t==='we';
+}
+// 卡片上方紅字：只在「需趕快用掉」時顯示（快到期≤3天/已過期/超過建議存放天數）
+function useSoonBanner(it){
+  if(!it||it.is3c) return null;
+  var td=today();
+  if(it.expiry){
+    var d=diffDays(it.expiry,td);
+    if(d<0) return '❗已過期';
+    if(d<=3) return '❗需先用掉';
+    return null;
+  }
+  if(it.lastBuy && it.keepDays){
+    var days=diffDays(td,it.lastBuy); if(days<0)days=0;
+    if(days>it.keepDays) return '❗需先用掉';
+  }
+  return null;
+}
+// 卡片日期標籤：到期日優先倒數「剩N天」，否則用購買日算「放N天」（皆選填，沒填不顯示）
+function dateBadge(it){
+  if(!it||it.is3c) return null;
+  var td=today();
+  if(it.expiry){
+    var d=diffDays(it.expiry,td);
+    if(d<0)  return {t:'過期'+Math.abs(d)+'天', c:'db-red'};
+    if(d===0)return {t:'今天到期', c:'db-yellow'};
+    if(d<=3) return {t:'剩'+d+'天', c:'db-yellow'};
+    return {t:'剩'+d+'天', c:'db-green'};
+  }
+  if(it.lastBuy){
+    var days=diffDays(td,it.lastBuy); if(days<0)days=0;
+    if(days===0) return {t:'今天買', c:'db-new'};
+    if(it.keepDays && days>it.keepDays) return {t:'放'+days+'天', c:'db-orange'};
+    if(it.keepDays) return {t:'放'+days+'天', c:'db-green'};
+    return {t:'放'+days+'天', c:'db-gray'};
+  }
+  return null;
 }
 
 // ══════════════════════════════════
@@ -545,6 +594,9 @@ function loadData(){
     seenNames[it.name]=true;
     return true;
   });
+  // 舊品項沒有購買日 → 補今天（之後就能算「放了幾天」；新品項本來就預設今天）
+  var _td=today();
+  items.forEach(function(it){ if(!it.is3c && !it.lastBuy){ it.lastBuy=_td; } });
   DEFAULT_LOCATIONS.forEach(function(dl){
     if(!locations.find(function(l){return l.id===dl.id;}))
       locations.push({id:dl.id,name:dl.name,zones:dl.zones.slice()});
@@ -664,9 +716,12 @@ function renderGrid(){
        +'</div>';
     return '<div class="item-card '+stCls+'" onclick="openEdit(\''+it.id+'\')">'
       +'<div class="item-card-bar"></div>'
+      +(function(){var b=useSoonBanner(it);return b?'<div class="use-soon">'+b+'</div>':'';})()
       +'<div class="item-emoji">'+renderEmoji(emoji,36)+'</div>'
       +'<div class="item-name" title="'+esc(it.name)+'">'+esc(it.name)+'</div>'
-      +body+'</div>';
+      +body
+      +(function(){var db=dateBadge(it);return db?'<div class="date-badge '+db.c+'">'+db.t+'</div>':'';})()
+      +'</div>';
   }).join('');
 }
 
@@ -703,8 +758,9 @@ function renderRestock(){
 function restockRowHTML(it,st){
   var emoji=getEmoji(it.name,it.cat);
   var cal=!it.is3c?'<button class="btn-cal'+(st.type==='soon'?' yellow':'')+'" onclick="addToCalendar(\''+it.id+'\')">📅 加入行事曆</button>':'';
+  var sug=Math.max(1,(it.threshold||0)-it.qty);
   var ctrl=!it.is3c
-    ?'<div class="qty-ctrl"><button class="qty-btn" onclick="updateQty(\''+it.id+'\',-1)">−</button><div class="qty-num">'+it.qty+'</div><button class="qty-btn" onclick="updateQty(\''+it.id+'\',1)">＋</button></div>'
+    ?'<div style="display:flex;align-items:center;gap:3px"><span style="font-size:10px;color:var(--ink3)">買</span><div class="qty-ctrl"><button class="qty-btn" onclick="bumpBuy(\''+it.id+'\',-1)">−</button><input class="qty-num" id="buyqty_'+it.id+'" value="'+sug+'" inputmode="numeric" readonly style="width:30px;text-align:center;border:none;background:transparent;font-weight:700"><button class="qty-btn" onclick="bumpBuy(\''+it.id+'\',1)">＋</button></div></div>'
     :'<button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="openEdit(\''+it.id+'\')">詳情</button>';
   return '<div class="restock-row">'
     +'<div class="restock-emoji">'+renderEmoji(emoji,28)+'</div>'
@@ -886,9 +942,15 @@ function updateQty(id,delta){
   if(document.getElementById('pageRestock').classList.contains('active')) renderRestock();
 }
 
+function bumpBuy(id,d){
+  var el=document.getElementById('buyqty_'+id); if(!el)return;
+  el.value=Math.max(1,(parseInt(el.value,10)||1)+d);
+}
 function addToCalendar(id){
   var it=items.find(function(m){return m.id===id;});if(!it||it.is3c)return;
-  var qty=Math.max(1,(it.threshold||0)-it.qty);   // 補到安全庫存（安全量−現有，最少1）
+  var qty=Math.max(1,(it.threshold||0)-it.qty);   // 預設＝補到安全量
+  var el=document.getElementById('buyqty_'+id);    // 若待補貨頁有調整購買數量，以它為準
+  if(el){ var v=parseInt(el.value,10); if(v>=1) qty=v; }
   localStorage.setItem('inv_pending_purchase',JSON.stringify({
     item_id:it.id,item_name:it.name,quantity:qty,unit:it.unit||'個',
     subcategory:['fruit','veg','meat','frozen','grain','sauce','canned','drink','snack'].indexOf(it.cat)>=0?'food':'daily',
@@ -1033,13 +1095,15 @@ function normalFields(it){
     +'</div>'
     +'<div class="field"><label>低庫存警戒值</label><input id="fThreshold" type="number" min="0" value="'+(it.threshold||2)+'"></div>'
     +'<div style="background:var(--surface2);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px">'
-    +'<div style="font-size:11px;font-weight:700;color:var(--ink3)">🛒 採購設定（選填）</div>'
+    +'<div style="font-size:11px;font-weight:700;color:var(--ink3)">📅 日期與採購（皆選填）</div>'
     +'<div class="field-row">'
-    +'<div class="field"><label>上次購買日</label><input id="fLastBuy" type="date" value="'+(it.lastBuy||'')+'"></div>'
-    +'<div class="field"><label>補購間隔（天）</label><input id="fInterval" type="number" min="1" value="'+(it.interval||'')+'" placeholder="例：30"></div>'
+    +'<div class="field"><label>購買日</label><input id="fLastBuy" type="date" value="'+(it.lastBuy||today())+'"><div class="field-hint">算「放了幾天」，預設今天</div></div>'
+    +'<div class="field"><label>建議存放天數</label><input id="fKeepDays" type="number" min="1" value="'+(it.keepDays||'')+'" placeholder="例：蔬菜5"><div class="field-hint">超過變橘提醒先用</div></div>'
     +'</div>'
-    +'<div class="field"><label>有效日期</label><input id="fExpiry" type="date" value="'+(it.expiry||'')+'">'
-    +'<div class="field-hint">超過有效期顯示 ❗ 警示</div></div>'
+    +'<div class="field-row">'
+    +'<div class="field"><label>有效日期</label><input id="fExpiry" type="date" value="'+(it.expiry||'')+'"><div class="field-hint">有填才倒數「剩N天」</div></div>'
+    +'<div class="field"><label>補購間隔（天）</label><input id="fInterval" type="number" min="1" value="'+(it.interval||'')+'" placeholder="例：30"><div class="field-hint">週期用品(衛生紙)</div></div>'
+    +'</div>'
     +'</div>';
 }
 function elecFields(it){
@@ -1163,6 +1227,7 @@ function saveItem(){
       it.lastBuy  =(document.getElementById('fLastBuy')||{}).value||'';
       it.interval =parseInt((document.getElementById('fInterval')||{}).value)||null;
       it.expiry   =(document.getElementById('fExpiry')||{}).value||'';
+      it.keepDays =parseInt((document.getElementById('fKeepDays')||{}).value)||null;
     }
     saveData();closeSheet();showToast('✅ 已儲存「'+it.name+'」');
     renderAll();initLocTabs();return;
@@ -1196,6 +1261,7 @@ function saveItem(){
     ni.lastBuy  =(document.getElementById('fLastBuy')||{}).value||'';
     ni.interval =parseInt((document.getElementById('fInterval')||{}).value)||null;
     ni.expiry   =(document.getElementById('fExpiry')||{}).value||'';
+    ni.keepDays =parseInt((document.getElementById('fKeepDays')||{}).value)||null;
   }
   items.push(ni);
   if(fav)favs.push(newId);
