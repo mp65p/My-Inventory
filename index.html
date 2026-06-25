@@ -305,7 +305,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">可自訂各商品的 emoji 圖示。</div>
         <div id="emojiSettingsList"></div>
       </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v60</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v61</div>
     </div>
   </div>
 
@@ -402,6 +402,7 @@ function renderEmoji(emoji,size){
 //  預設資料
 // ══════════════════════════════════
 var DEFAULT_LOCATIONS=[
+  {id:'unfiled', name:'未分類',zones:['待整理']},
   {id:'kitchen',name:'廚房',  zones:['流理台','櫥櫃','抽屜','冷藏','冷凍']},
   {id:'bath',   name:'浴室',  zones:['檯面','櫃子']},
   {id:'living', name:'客廳',  zones:['電視櫃','茶几','玄關收納櫃','零食櫃']},
@@ -998,14 +999,23 @@ function pollDone(){
         var _nk=String(cb.item_name).replace(/\s/g,'');
         it=items.find(function(m){return (m.name||'').replace(/\s/g,'')===_nk;});
       }
-      if(!it){ showToast('⚠️ 收到回傳但找不到品項'+(cb.item_name?'：'+cb.item_name:' id='+itemId)); return; }
+      if(!it){
+        if(cb.create && cb.item_name){   // 未入庫品項（從分類字典選的）→ 自動新建入庫
+          it={ id:uid(), name:cb.item_name, cat:cb.cat||'other', unit:'', qty:0, threshold:0,
+               location:'未分類', zone:'待整理', interval:null, lastBuy:(cb.done_date||today()),
+               expiry:'', is3c:false, keepDays:null };
+          items.push(it);
+        } else {
+          showToast('⚠️ 收到回傳但找不到品項'+(cb.item_name?'：'+cb.item_name:' id='+itemId)); return;
+        }
+      }
       var _add=(cb.qty_added||1), _before=it.qty;
       it.qty+=_add;
       it.lastBuy=cb.done_date||today();
       changed=true;
       acks.push({item_name:it.name,qty_added:_add});   // 回報行事曆
       logRestock(it.name,_before,it.qty,_add);          // 寫永久入庫紀錄
-      showToast('✅ 庫存更新：'+it.name+' '+_before+'→'+it.qty+'（+'+_add+'）', 5000);
+      showToast((_before===0?'✅ 已新增入庫：':'✅ 庫存更新：')+it.name+' '+_before+'→'+it.qty+'（+'+_add+'）', 5000);
     });
     if(acks.length){   // 回報行事曆 → 行事曆會跳「✅ 回傳成功」
       var prevAck=[]; try{prevAck=JSON.parse(localStorage.getItem('inv_update_ack')||'[]');}catch(e){}
@@ -1013,7 +1023,7 @@ function pollDone(){
       localStorage.setItem('inv_update_ack',JSON.stringify(prevAck.concat(acks)));
     }
     if(changed){
-      saveData();renderAll();
+      saveData();renderAll();initLocTabs();
       if(document.getElementById('pageRestock').classList.contains('active')) renderRestock();
     }
   }catch(e){}
