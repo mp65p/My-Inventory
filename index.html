@@ -138,6 +138,20 @@ header{background:var(--surface);border-bottom:1px solid var(--border);position:
 .s-item.ww{border-color:#93C5FD;background:var(--blue-light)}
 .s-emoji{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .s-emoji img{width:28px;height:28px}
+.emoji-edit{border:none;background:none;padding:0 2px;cursor:pointer;font-size:16px;line-height:1;border-radius:6px}
+.emoji-edit:active{background:var(--accent-light)}
+.emoji-pick-mask{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px}
+.emoji-pick-card{background:#fff;border-radius:16px;max-width:340px;width:100%;max-height:80vh;overflow:auto;padding:14px 14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+.emoji-pick-hd{display:flex;align-items:center;font-size:15px;margin-bottom:8px}
+.emoji-pick-x{margin-left:auto;border:none;background:none;font-size:18px;cursor:pointer;color:var(--ink3)}
+.emoji-pick-cur{font-size:13px;color:var(--ink3);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.emoji-pick-auto{margin-left:auto;border:1px solid var(--border);background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.emoji-pick-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.emoji-pick-btn{border:1px solid var(--border);background:#fff;border-radius:10px;font-size:22px;line-height:1;padding:7px 0;cursor:pointer}
+.emoji-pick-btn:active{background:var(--accent-light)}
+.emoji-pick-catlbl{grid-column:1/-1;font-size:16px;margin-top:8px;opacity:.7}
+.emoji-pick-more{margin-top:10px}
+.emoji-pick-more summary{font-size:13px;color:var(--accent);cursor:pointer;padding:4px 0}
 .si-left{flex:1;min-width:0}
 .si-name{font-weight:700;font-size:14px}
 .si-tags{font-size:11px;color:var(--ink3);margin-top:1px}
@@ -305,7 +319,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">可自訂各商品的 emoji 圖示。</div>
         <div id="emojiSettingsList"></div>
       </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v61</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v63</div>
     </div>
   </div>
 
@@ -392,7 +406,39 @@ var customEmoji={};
 
 function loadCustomEmoji(){try{var r=localStorage.getItem(CUSTOM_EMOJI_KEY);if(r)customEmoji=JSON.parse(r);}catch(e){customEmoji={};}}
 function saveCustomEmoji(){try{localStorage.setItem(CUSTOM_EMOJI_KEY,JSON.stringify(customEmoji));}catch(e){}}
-function getEmoji(name,cat){return customEmoji[name]||EMOJI_MAP[name]||CAT_EMOJI[cat]||'📦';}
+function getEmoji(name,cat){return customEmoji[name]||EMOJI_MAP[name]||_guessEmoji(name)||CAT_EMOJI[cat]||'📦';}
+// 關鍵字猜測（基本款）：新商品名沒對照時，依名字猜一個合適 emoji
+function _guessEmoji(name){
+  if(!name) return null; var n=String(name);
+  var R=[[/(地瓜|番薯|薯|芋)/,'🍠'],[/(米|飯)/,'🍚'],[/(麵|面)/,'🍜'],[/粉/,'🍚'],
+    [/雞/,'🍗'],[/(豬|牛|羊|肉|排|培根)/,'🥩'],[/(魚|鮭|鱈|鮪)/,'🐟'],[/蝦/,'🦐'],[/(蟹|蠔|蛤|貝)/,'🦀'],
+    [/蛋/,'🥚'],[/(菜|蔬|芥|蔥|椒)/,'🥬'],[/(花椰|青花|綠花)/,'🥦'],[/蘿蔔/,'🥕'],[/菇/,'🍄'],[/玉米/,'🌽'],[/豆/,'🫘'],
+    [/(醬|味噌|沙茶)/,'🫙'],[/醋/,'🍶'],[/鹽/,'🧂'],[/油/,'🛢️'],[/糖/,'🍬'],[/罐頭/,'🥫'],
+    [/(水果|蘋果|果)/,'🍎'],[/(奶|乳|起司|優格)/,'🥛'],[/茶/,'🍵'],[/咖啡/,'☕'],[/(酒|啤)/,'🍶'],[/(水|飲)/,'🧃'],
+    [/(餅|酥)/,'🍪'],[/(糖果|軟糖)/,'🍬'],[/巧克力/,'🍫'],
+    [/(紙|衛生)/,'🧻'],[/(洗|皂|精|沐浴)/,'🧴'],[/牙/,'🪥'],[/(藥|錠|膠囊)/,'💊'],[/(電池|電|燈|池)/,'🔌'],[/垃圾/,'🗑️']];
+  for(var i=0;i<R.length;i++){ if(R[i][0].test(n)) return R[i][1]; }
+  return null;
+}
+// 內建 emoji 選盤（精簡版，依分類）
+var EMOJI_PALETTE={
+  fruit:['🍎','🍌','🍐','🍊','🍇','🍉','🍍','🥝','🍈','🍅','🍓','🍑','🥭','🍋','🍒','🫐'],
+  veg:['🥬','🥦','🥕','🧅','🧄','🫚','🍄','🌽','🥒','🍆','🥔','🫑','🥗','🫘','🌶️','🫛'],
+  meat:['🥩','🍗','🍖','🐟','🦐','🦑','🦀','🍤','🥓','🌭','🍳','🦞'],
+  frozen:['🧊','🥟','🍦','🍧','🧇','🐟','🍤','🫓','🍕','🥧'],
+  grain:['🍚','🍙','🍘','🌾','🍞','🥖','🍜','🍝','🍠','🥔','🌽','🥣','🥐','🫓','🧇','🥯'],
+  sauce:['🫙','🧂','🍶','🧈','🛢️','🍯','🌶️','🥫','🫗','🧃','🍾','🧉'],
+  canned:['🥫','🐟','🌽','🥜','🍯','🍫','🫙','🍮','🫛','🍅'],
+  drink:['🧃','🥤','☕','🍵','🧋','🥛','🍶','🧉','🫖','🍺'],
+  snack:['🍜','🍪','🍫','🍬','🍩','🥨','🍿','🍘','🍡','🥠'],
+  daily:['🧻','🧷','🧴','🧼','🪥','🧽','🪣','🗑️','🧯','🕯️'],
+  personal:['🧴','🪥','🧼','💄','🪒','🧽','🧻','🩹','💊','🧷'],
+  home:['🧴','🧹','🧺','🪔','🔋','💡','🛋️','🪴','🧯','🪟'],
+  elec:['🔌','🔋','💡','📱','🔦','🖥️','🎧','⌨️'],
+  repair:['🔧','🔨','🪛','🧰','⚙️','🪜','🔩','🧲'],
+  medical:['💊','🩹','🩺','🌡️','💉','🧴','🩼','😷'],
+  drink2:[], other:['📦','🛒','🏷️','✏️','📎','🔖','🧩','⭐']
+};
 function renderEmoji(emoji,size){
   size=size||36;
   return '<span style="font-size:'+(Math.round(size*0.85))+'px;line-height:1;display:inline-block">'+emoji+'</span>';
@@ -857,7 +903,7 @@ function renderCatSettings(){
       +'<span class="sg-arrow">▶</span></div></div>'
       +'<div class="sg-body">'
       +cat.items.map(function(item,ii){
-        return '<div class="sg-item"><span>'+renderEmoji(getEmoji(item,cat.id),16)+' '+esc(item)+'</span><button class="btn-del-sm" onclick="delCatItem('+ci+','+ii+')">×</button></div>';
+        return '<div class="sg-item"><span><button type="button" class="emoji-edit" onclick="openEmojiPickerByIdx('+ci+','+ii+')">'+renderEmoji(getEmoji(item,cat.id),16)+'</button> '+esc(item)+'</span><button class="btn-del-sm" onclick="delCatItem('+ci+','+ii+')">×</button></div>';
       }).join('')
       +'<div class="add-inline"><input placeholder="新增商品" id="nci_'+ci+'" onkeydown="if(event.key===\'Enter\')addCatItem('+ci+')"><button class="btn-add-sm" onclick="addCatItem('+ci+')">新增</button></div>'
       +'</div></div>';
@@ -944,6 +990,40 @@ function resetCustomEmoji(itemName){
   delete customEmoji[itemName];saveCustomEmoji();
   showToast('已重設「'+itemName+'」圖示');renderEmojiSettings();renderAll();
 }
+// ===== 內建 emoji 選盤 =====
+var _emojiPickFor=null;
+function openEmojiPickerByIdx(ci,ii){ var cat=categories[ci]; if(!cat)return; openEmojiPicker(cat.items[ii], cat.id); }
+function openEmojiPicker(name,catId){
+  _emojiPickFor={name:name,cat:catId};
+  var cur=getEmoji(name,catId);
+  function grid(arr){ return arr.map(function(e){ return '<button type="button" class="emoji-pick-btn" onclick="pickEmoji(\''+e+'\')">'+e+'</button>'; }).join(''); }
+  var pal=EMOJI_PALETTE[catId]||EMOJI_PALETTE.other;
+  var more=Object.keys(EMOJI_PALETTE).filter(function(k){return k!==catId && (EMOJI_PALETTE[k]||[]).length;}).map(function(k){
+    return '<div class="emoji-pick-catlbl">'+(CAT_EMOJI[k]||'')+'</div>'+grid(EMOJI_PALETTE[k]);
+  }).join('');
+  var html=''
+    +'<div class="emoji-pick-mask" onclick="closeEmojiPicker(event)">'
+    +'<div class="emoji-pick-card" onclick="event.stopPropagation()">'
+    +'<div class="emoji-pick-hd"><b>'+esc(name)+'</b> — 選擇圖示<button type="button" class="emoji-pick-x" onclick="closeEmojiPicker()">✕</button></div>'
+    +'<div class="emoji-pick-cur">目前：<span style="font-size:26px">'+cur+'</span> <button type="button" class="emoji-pick-auto" onclick="resetEmojiPick()">↺ 自動</button></div>'
+    +'<div class="emoji-pick-grid">'+grid(pal)+'</div>'
+    +'<details class="emoji-pick-more"><summary>看更多分類圖示</summary><div class="emoji-pick-grid">'+more+'</div></details>'
+    +'</div></div>';
+  var host=document.getElementById('emojiPickerHost');
+  if(!host){ host=document.createElement('div'); host.id='emojiPickerHost'; document.body.appendChild(host); }
+  host.innerHTML=html;
+}
+function _applyEmojiInPlace(){
+  if(!_emojiPickFor) return;
+  var ci=-1, ii=-1;
+  for(var a=0;a<categories.length;a++){ var k=categories[a].items.indexOf(_emojiPickFor.name); if(k>=0){ci=a;ii=k;break;} }
+  if(ci<0) return;
+  var btn=document.querySelector('.emoji-edit[onclick="openEmojiPickerByIdx('+ci+','+ii+')"]');
+  if(btn) btn.innerHTML=renderEmoji(getEmoji(_emojiPickFor.name, categories[ci].id),16);
+}
+function pickEmoji(e){ if(!_emojiPickFor)return; customEmoji[_emojiPickFor.name]=e; saveCustomEmoji(); _applyEmojiInPlace(); renderAll(); closeEmojiPicker(); }
+function resetEmojiPick(){ if(!_emojiPickFor)return; delete customEmoji[_emojiPickFor.name]; saveCustomEmoji(); _applyEmojiInPlace(); renderAll(); closeEmojiPicker(); }
+function closeEmojiPicker(ev){ var h=document.getElementById('emojiPickerHost'); if(h)h.innerHTML=''; _emojiPickFor=null; }
 
 // ══════════════════════════════════
 //  Qty / Calendar / Poll
