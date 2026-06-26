@@ -314,12 +314,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div id="catSettingsList"></div>
         <button class="btn-add-group" onclick="addCategoryGroup()">＋ 新增分類</button>
       </div>
-      <div class="settings-sec">
-        <div class="settings-title">🎨 商品圖示管理</div>
-        <div style="font-size:12px;color:var(--ink3);margin-bottom:8px">可自訂各商品的 emoji 圖示。</div>
-        <div id="emojiSettingsList"></div>
-      </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v63</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v64</div>
     </div>
   </div>
 
@@ -874,7 +869,7 @@ function renderSearch(){
 // ══════════════════════════════════
 //  設定頁
 // ══════════════════════════════════
-function renderSettings(){renderLocSettings();renderCatSettings();renderEmojiSettings();}
+function renderSettings(){renderLocSettings();renderCatSettings();}
 
 function renderLocSettings(){
   var el=document.getElementById('locSettingsList');
@@ -910,29 +905,7 @@ function renderCatSettings(){
   }).join('');
 }
 
-function renderEmojiSettings(){
-  var el=document.getElementById('emojiSettingsList');
-  if(!el) return;
-  var html='<div class="sg"><div class="sg-body open" style="display:flex">';
-  items.forEach(function(it){
-    var cur=getEmoji(it.name,it.cat);
-    var isC=!!customEmoji[it.name];
-    html+='<div class="sg-item">'
-      +'<div style="display:flex;align-items:center;gap:8px">'
-      +'<span style="font-size:20px">'+cur+'</span>'
-      +'<span>'+esc(it.name)+(isC?'<span style="font-size:10px;color:var(--accent);margin-left:4px">自訂</span>':'')+'</span>'
-      +'</div>'
-      +'<div style="display:flex;gap:6px;align-items:center">'
-      +'<input id="ei_'+esc(it.id)+'" value="'+esc(cur)+'" maxlength="4" '
-      +'style="width:48px;text-align:center;font-size:18px;border:1.5px solid var(--border);border-radius:8px;padding:3px;outline:none" '
-      +'onkeydown="if(event.key===\'Enter\')setCustomEmoji(\''+esc(it.id)+'\',\''+esc(it.name)+'\')">'
-      +'<button class="btn-add-sm" style="padding:5px 10px" onclick="setCustomEmoji(\''+esc(it.id)+'\',\''+esc(it.name)+'\')">套用</button>'
-      +(isC?'<button class="btn-del-sm" onclick="resetCustomEmoji(\''+esc(it.name)+'\')">重設</button>':'')
-      +'</div></div>';
-  });
-  html+='</div></div>';
-  el.innerHTML=html;
-}
+
 
 function toggleSG(head){
   var body=head.nextElementSibling;
@@ -960,15 +933,30 @@ function addLocationGroup(){
   if(locations.find(function(l){return l.name===name;})){showToast('區域已存在');return;}
   locations.push({id:'u_'+uid(),name:name,zones:[]});saveData();renderLocSettings();
 }
+function _renderCatBody(ci){
+  var cat=categories[ci]; if(!cat) return;
+  var sgs=document.querySelectorAll('#catSettingsList .sg');
+  var sg=sgs[ci]; if(!sg) return;
+  var body=sg.querySelector('.sg-body'); if(!body) return;
+  body.innerHTML = cat.items.map(function(item,ii){
+      return '<div class="sg-item"><span><button type="button" class="emoji-edit" onclick="openEmojiPickerByIdx('+ci+','+ii+')">'+renderEmoji(getEmoji(item,cat.id),16)+'</button> '+esc(item)+'</span><button class="btn-del-sm" onclick="delCatItem('+ci+','+ii+')">×</button></div>';
+    }).join('')
+    +'<div class="add-inline"><input placeholder="新增商品" id="nci_'+ci+'" onkeydown="if(event.key===\'Enter\')addCatItem('+ci+')"><button class="btn-add-sm" onclick="addCatItem('+ci+')">新增</button></div>';
+}
 function delCatItem(ci,ii){
   if(items.some(function(it){return it.name===categories[ci].items[ii]&&it.cat===categories[ci].id;})){showToast('⚠️ 庫存中有此商品');return;}
-  categories[ci].items.splice(ii,1);saveData();renderCatSettings();
+  categories[ci].items.splice(ii,1);saveData();
+  _renderCatBody(ci);   // 只更新這個分類，畫面不跳、不收合
+  renderAll();
 }
 function addCatItem(ci){
   var inp=document.getElementById('nci_'+ci);
   var val=(inp?inp.value:'').trim();if(!val)return;
   if(categories[ci].items.indexOf(val)>=0){showToast('商品已存在');return;}
-  categories[ci].items.push(val);saveData();renderCatSettings();
+  categories[ci].items.push(val);saveData();
+  _renderCatBody(ci);   // 只更新這個分類，畫面停在原地
+  var ninp=document.getElementById('nci_'+ci); if(ninp) ninp.focus();   // 保留焦點，可連續加
+  renderAll();
 }
 function delCategory(ci){
   if(items.some(function(it){return it.cat===categories[ci].id;})){showToast('⚠️ 有商品使用此分類');return;}
@@ -979,16 +967,6 @@ function addCategoryGroup(){
   var icon=prompt('分類圖示（emoji）：','📦');if(!icon)icon='📦';
   categories.push({id:'u_'+uid(),icon:icon.trim(),name:name,items:[]});
   saveData();renderCatSettings();
-}
-function setCustomEmoji(itemId,itemName){
-  var inp=document.getElementById('ei_'+itemId);if(!inp)return;
-  var val=(inp.value||'').trim();if(!val){showToast('⚠️ 請輸入 emoji');return;}
-  customEmoji[itemName]=val;saveCustomEmoji();
-  showToast('✅ 已更新「'+itemName+'」圖示');renderEmojiSettings();renderAll();
-}
-function resetCustomEmoji(itemName){
-  delete customEmoji[itemName];saveCustomEmoji();
-  showToast('已重設「'+itemName+'」圖示');renderEmojiSettings();renderAll();
 }
 // ===== 內建 emoji 選盤 =====
 var _emojiPickFor=null;
