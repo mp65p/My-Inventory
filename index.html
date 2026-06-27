@@ -319,7 +319,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div id="catSettingsList"></div>
         <button class="btn-add-group" onclick="addCategoryGroup()">＋ 新增分類</button>
       </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v78</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v81</div>
     </div>
   </div>
 
@@ -940,7 +940,7 @@ function renderSearch(){
     var sc={expired:'red',low:'red',soon:'yellow',ww:'blue',we:'red',ok:'green',ok3c:'green'}[st.type]||'';
     var cat=categories.find(function(c){return c.id===it.cat;});
     var tags=(cat?cat.icon+' '+cat.name:'')+'・'+it.location+(it.zone?'・'+it.zone:'');
-    var qstr=it.is3c?'—':it.qty+' '+(it.unit||'');
+    var qstr=it.is3c?'—':(it.trackQty===false?'':(Number(it.qty)===0?'':it.qty+' '+(it.unit||'')));
     return '<div class="s-item '+rc+'" onclick="openEdit(\''+it.id+'\')">'
       +'<div class="s-emoji">'+renderEmoji(getEmoji(it.name,it.cat),28)+'</div>'
       +'<div class="si-left"><div class="si-name">'+esc(it.name)+'</div><div class="si-tags">'+tags+'</div></div>'
