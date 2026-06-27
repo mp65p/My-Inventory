@@ -319,7 +319,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div id="catSettingsList"></div>
         <button class="btn-add-group" onclick="addCategoryGroup()">＋ 新增分類</button>
       </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v81</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v82</div>
     </div>
   </div>
 
@@ -868,15 +868,15 @@ function renderGrid(){
 // ══════════════════════════════════
 function renderRestock(){
   var wrap=document.getElementById('restockContent');
-  var groups={expired:[],low:[],soon:[],ww:[]};
+  var groups={expired:[],low:[],soon:[]};
   items.forEach(function(it){
     var st=getStatus(it);
-    if(st.type==='expired'||st.type==='we') groups.expired.push({it:it,st:st});
+    if(st.type==='expired') groups.expired.push({it:it,st:st});   // 食品過期(3C保固到期we不進待補貨)
     else if(st.type==='low')  groups.low.push({it:it,st:st});
     else if(st.type==='soon') groups.soon.push({it:it,st:st});
-    else if(st.type==='ww')   groups.ww.push({it:it,st:Object.assign({},st,{cls:'blue'})});
+    // 3C 保固提醒(ww)/保固到期(we) 不顯示在待補貨，僅在查詢頁備註
   });
-  var total=groups.expired.length+groups.low.length+groups.soon.length+groups.ww.length;
+  var total=groups.expired.length+groups.low.length+groups.soon.length;
   if(total===0){wrap.innerHTML='<div class="empty-hint">🎉 目前沒有待補貨項目！</div>';return;}
   var html='';
   function sec(cls,icon,label,arr){
@@ -889,7 +889,6 @@ function renderRestock(){
   html+=sec('expired','❗','過期警示',groups.expired);
   html+=sec('low',    '⚠️','庫存不足',groups.low);
   html+=sec('soon',   '🕐','建議採購',groups.soon);
-  html+=sec('ww',     '🔔','保固提醒',groups.ww);
   wrap.innerHTML=html;
 }
 
@@ -1365,7 +1364,7 @@ function elecFields(it){
     +'<div class="field-row">'
     +'<div class="field"><label>購買日期</label><input id="fBuyDate" type="date" value="'+(it.buyDate||'')+'"></div>'
     +'<div class="field"><label>保固年限</label><select id="fWY"><option value="">未設定</option>'
-    +[1,2,3,5].map(function(y){return '<option value="'+y+'"'+(it.warrantyYears==y?' selected':'')+'>'+y+'年</option>';}).join('')
+    +[0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8].map(function(y){return '<option value="'+y+'"'+(it.warrantyYears==y?' selected':'')+'>'+(y===0.5?'半年':y+'年')+'</option>';}).join('')
     +'</select></div></div>'
     +'<div class="field-row">'
     +'<div class="field"><label>購買金額</label><input id="fPrice" type="number" value="'+(it.price||'')+'" placeholder="例：12000"></div>'
@@ -1471,9 +1470,9 @@ function saveItem(){
       it.price  =parseInt((document.getElementById('fPrice')||{}).value)||null;
       it.store  =(document.getElementById('fStore')||{}).value||'';
       it.note   =(document.getElementById('fNote')||{}).value||'';
-      var wy=parseInt((document.getElementById('fWY')||{}).value)||0;
+      var wy=parseFloat((document.getElementById('fWY')||{}).value)||0;
       it.warrantyYears=wy||null;
-      it.warrantyEnd=wy&&it.buyDate?addDays(it.buyDate,wy*365):'';
+      it.warrantyEnd=wy&&it.buyDate?addDays(it.buyDate,Math.round(wy*365)):'';
     } else {
       it.trackQty=(document.getElementById('fTrackQty')||{checked:true}).checked;
       it.unit     =(document.getElementById('fUnit')||{}).value||'個';
@@ -1506,9 +1505,9 @@ function saveItem(){
     ni.price  =parseInt((document.getElementById('fPrice')||{}).value)||null;
     ni.store  =(document.getElementById('fStore')||{}).value||'';
     ni.note   =(document.getElementById('fNote')||{}).value||'';
-    var wy2=parseInt((document.getElementById('fWY')||{}).value)||0;
+    var wy2=parseFloat((document.getElementById('fWY')||{}).value)||0;
     ni.warrantyYears=wy2||null;
-    ni.warrantyEnd=wy2&&ni.buyDate?addDays(ni.buyDate,wy2*365):'';
+    ni.warrantyEnd=wy2&&ni.buyDate?addDays(ni.buyDate,Math.round(wy2*365)):'';
   } else {
     ni.trackQty=(document.getElementById('fTrackQty')||{checked:true}).checked;
     ni.unit     =(document.getElementById('fUnit')||{}).value||'個';
