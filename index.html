@@ -319,7 +319,7 @@ input:checked+.slider:before{transform:translateX(18px)}
         <div id="catSettingsList"></div>
         <button class="btn-add-group" onclick="addCategoryGroup()">＋ 新增分類</button>
       </div>
-      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v77</div>
+      <div style="text-align:center;color:var(--ink3);font-size:12px;padding:10px 0 4px">庫存管理　版本 v78</div>
     </div>
   </div>
 
@@ -382,24 +382,25 @@ function startCloudSync(){
   db.ref(FB_PATH).on("value", function(s){
     var blob; try{ blob=s.val(); }catch(e){ return; }
     if(blob===_lastBlob) return;        // 自己寫的回音，略過
-    if(blob==null){                      // 雲端空 → 若本機有資料，上傳當初始
-      if(items.length||categories.length||locations.length) pushCloud();
-      return;
-    }
-    try{
-      var d=JSON.parse(blob);
-      items=Array.isArray(d.items)?d.items:[];
-      categories=Array.isArray(d.categories)?d.categories:[];
-      locations=Array.isArray(d.locations)?d.locations:[];
-      favs=Array.isArray(d.favs)?d.favs:[];
-      _lastBlob=blob;
-      // 同步到本機後援 + 重畫
-      try{localStorage.setItem(DATA_KEY,JSON.stringify(items));localStorage.setItem(CAT_KEY,JSON.stringify(categories));localStorage.setItem(LOC_KEY,JSON.stringify(locations));localStorage.setItem(FAV_KEY,JSON.stringify(favs));}catch(e){}
-      if(typeof initLocTabs==='function') initLocTabs();
-      if(typeof renderAll==='function') renderAll();
-      var sp=document.getElementById('pageSettings');
-      if(sp&&sp.classList.contains('active')){ if(typeof renderCatSettings==='function')renderCatSettings(); if(typeof renderLocSettings==='function')renderLocSettings(); }
-    }catch(e){}
+    var remote=null;
+    if(blob!=null){ try{ remote=JSON.parse(blob); }catch(e){ remote=null; } }
+    var remoteHasItems = remote && Array.isArray(remote.items) && remote.items.length>0;
+    var localHasItems  = Array.isArray(items) && items.length>0;
+    // 保護/救援：雲端沒有品項、但本機有 → 上傳本機（避免空雲覆蓋好資料）
+    if(!remoteHasItems && localHasItems){ pushCloud(); return; }
+    if(blob==null) return;               // 雲端空、本機也空 → 不動
+    if(!remote) return;
+    // 套用雲端資料
+    items=Array.isArray(remote.items)?remote.items:[];
+    categories=Array.isArray(remote.categories)?remote.categories:[];
+    locations=Array.isArray(remote.locations)?remote.locations:[];
+    favs=Array.isArray(remote.favs)?remote.favs:[];
+    _lastBlob=blob;
+    try{localStorage.setItem(DATA_KEY,JSON.stringify(items));localStorage.setItem(CAT_KEY,JSON.stringify(categories));localStorage.setItem(LOC_KEY,JSON.stringify(locations));localStorage.setItem(FAV_KEY,JSON.stringify(favs));}catch(e){}
+    if(typeof initLocTabs==='function') initLocTabs();
+    if(typeof renderAll==='function') renderAll();
+    var sp=document.getElementById('pageSettings');
+    if(sp&&sp.classList.contains('active')){ if(typeof renderCatSettings==='function')renderCatSettings(); if(typeof renderLocSettings==='function')renderLocSettings(); }
   });
 }
 var CUSTOM_EMOJI_KEY='inv_custom_emoji';
@@ -706,7 +707,7 @@ function loadData(){
   // 舊品項沒有購買日 → 補今天（之後就能算「放了幾天」；新品項本來就預設今天）
   var _td=today();
   items.forEach(function(it){ if(!it.is3c && !it.lastBuy){ it.lastBuy=_td; } });
-  if(_idFixed){ try{ saveData(); }catch(e){} }
+  if(_idFixed){ try{ _saveLocal(); }catch(e){} }
   if(locations.length===0){
     DEFAULT_LOCATIONS.forEach(function(dl){
       locations.push({id:dl.id,name:dl.name,zones:dl.zones.slice()});
@@ -725,13 +726,16 @@ function loadData(){
     });
   }
   // 不自動帶入預設範例品項：新安裝/storage清空時為空庫存，避免刪掉的品項又冒出來
-  saveData();
+  _saveLocal();
 }
-function saveData(){
+function _saveLocal(){
   try{localStorage.setItem(DATA_KEY,JSON.stringify(items));}catch(e){}
   try{localStorage.setItem(LOC_KEY, JSON.stringify(locations));}catch(e){}
   try{localStorage.setItem(CAT_KEY, JSON.stringify(categories));}catch(e){}
   try{localStorage.setItem(FAV_KEY, JSON.stringify(favs));}catch(e){}
+}
+function saveData(){
+  _saveLocal();
   pushCloud();   // 同步到雲端
 }
 function isFav(id){return favs.indexOf(id)>=0;}
